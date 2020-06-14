@@ -129,16 +129,9 @@ bool frameCallback(float time)
 { // Se llama periodicamente cada frame
 	
 	InitializeLua();
-	if (m_bHasBeenEaten)
-	{
-		m_fTimeEaten += time;
-		if (m_fTimeEaten > 2.05f)
-		{
-			SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
-			m_fTimeEaten = 0;
-			m_bHasBeenEaten = false;
-		}
-	}
+	lua_getglobal(m_pLua, "frameUpdate");
+	lua_pushnumber(m_pLua, time);
+	lua_pcall(m_pLua, 1, 1, 0);
 
 	return false;
 }

@@ -13,6 +13,7 @@ function Color.new(_r, _g, _b)
     return color
 end
 
+has_been_eaten = false
 width = 300
 coin_score = 25
 powerup_score = 2500
@@ -21,6 +22,7 @@ bronze_to_silver = 10
 silver_to_gold = 10
 powerup_duration = 20
 speed_multiplicator = 2
+time_eaten = 0
 --defino el color de 0 a 1 porque me es más intuitivo
 powerup_color = Color.new(0.5, 0, 1)
 
@@ -49,14 +51,32 @@ function computeMedals(_score)
 
     return gold, silver, bronze
 end
-function pacmanEaten(_lives, _eaten)
+function pacmanEaten(_lives)
     _lives = _lives - 0.5
     dead = _lives < 0
-    if _eaten == false then
-        _eaten = true
+    if has_been_eaten == false then
+        has_been_eaten = true
     end
-    return dead, _lives, _eaten
+    return dead, _lives
 end
 function getWidth()
 	return width
+end
+
+function frameUpdate(_deltaTime)
+
+	if has_been_eaten then
+
+		time_eaten = time_eaten + _deltaTime
+		if time_eaten > 2.05 then
+
+			--SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
+			time_eaten = 0
+			has_been_eaten = false;
+		end
+	end
+
+	return false
+
+
 end
