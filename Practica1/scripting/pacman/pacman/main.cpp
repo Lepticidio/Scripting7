@@ -16,19 +16,19 @@ struct Color
 
 	}
 };
-bool m_bLuaInitialized = false;
+bool m_bColorInitialized = false, m_bLuaInitialized = false;
 int num_coins = 0;
-const int platas_para_oro = 5;
-const int bronces_para_plata = 100;
 
 const float max_vida = 1.5f;
 float vida = max_vida; 
 
 lua_State* m_pLua;
 
-int m_iCoinScore = 0, m_iPowerupScore = 0, m_iScoreToBronze = 0;
-float m_fPowerupDuration = 0, m_fSpeedMultiplicator = 0;
+int m_iCoinScore = 0, m_iPowerupScore = 0;
+float m_fPowerupDuration = 0, m_fSpeedMultiplicator = 0, m_fTimeEaten;
 Color m_oPowerupColor(0, 0, 0);
+time_t  m_oLastTimeEaten, m_oTimeNow;
+bool m_bHasBeenEaten;
 
 Color ColorFromLua(int _iIndex)
 {
@@ -41,7 +41,26 @@ Color ColorFromLua(int _iIndex)
 
 	return Color(fRed, fGreen, fBlue);
 }
+Color ColorFromLivesLua(const char* _sName, float _fParameter)
+{
+	lua_getglobal(m_pLua, _sName);
+	lua_pushnumber(m_pLua, _fParameter);
+	lua_pcall(m_pLua, 1, 1, 0);
+	lua_getfield(m_pLua, -1, "r");
+	float fRed = lua_tonumber(m_pLua, -1) * 255;
+	lua_getfield(m_pLua, -2, "g");
+	float fGreen = lua_tonumber(m_pLua, -1) * 255;
+	lua_getfield(m_pLua, -3, "b");
+	float fBlue = lua_tonumber(m_pLua, -1) * 255;
 
+	return Color(fRed, fGreen, fBlue);
+}
+
+
+void SetPacmanColor(Color _oColor)
+{
+	setPacmanColor((int)_oColor.r, (int)_oColor.g, (int)_oColor.b);
+}
 
 
 bool InitializeLua() 
@@ -57,20 +76,23 @@ bool InitializeLua()
 	}
 	else
 	{
+
+		lua_settop(m_pLua, 0);
 		lua_getglobal(m_pLua, "coin_score");
-		lua_getglobal( m_pLua,  "powerup_score");
-		lua_getglobal(m_pLua, "score_to_bronze");
+		lua_getglobal(m_pLua, "powerup_score");
 		lua_getglobal(m_pLua, "powerup_duration");
 		lua_getglobal(m_pLua, "speed_multiplicator");
 		lua_getglobal(m_pLua, "powerup_color");
 
+
+
 		m_iCoinScore = lua_tointeger(m_pLua, 1);
 		m_iPowerupScore = lua_tointeger(m_pLua, 2);
-		m_iScoreToBronze = lua_tointeger(m_pLua, 3);
-		m_fPowerupDuration = lua_tonumber(m_pLua, 4);
-		m_fSpeedMultiplicator = lua_tonumber(m_pLua, 5);
+		m_fPowerupDuration = lua_tonumber(m_pLua, 3);
+		m_fSpeedMultiplicator = lua_tonumber(m_pLua, 4);
 
-		m_oPowerupColor = ColorFromLua(6);
+		m_oPowerupColor = ColorFromLua(5);
+		m_bLuaInitialized = true;
 
 		return true;
 	}
@@ -84,8 +106,13 @@ void FinalizeLua()
 
 bool pacmanEatenCallback(int& score, bool& muerto)
 { // Pacman ha sido comido por un fantasma
-	vida -= 0.5f;
-	muerto = vida < 0.0f;
+	lua_getglobal(m_pLua, "pacmanEaten");
+	lua_pushnumber(m_pLua, vida);
+	lua_pushboolean(m_pLua, m_bHasBeenEaten);
+	lua_pcall(m_pLua, 2, 3, 0);
+	muerto = lua_toboolean(m_pLua, -3);
+	vida = lua_tonumber(m_pLua, -2);
+	m_bHasBeenEaten = lua_toboolean(m_pLua, -1);
 
 	return true;
 }
@@ -100,6 +127,19 @@ bool coinEatenCallback(int& score)
 
 bool frameCallback(float time)
 { // Se llama periodicamente cada frame
+	
+	InitializeLua();
+	if (m_bHasBeenEaten)
+	{
+		m_fTimeEaten += time;
+		if (m_fTimeEaten > 2.05f)
+		{
+			SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
+			m_fTimeEaten = 0;
+			m_bHasBeenEaten = false;
+		}
+	}
+
 	return false;
 }
 
@@ -111,7 +151,7 @@ bool ghostEatenCallback(int& score)
 bool powerUpEatenCallback(int& score)
 { // Pacman se ha comido un powerUp
 	setPacmanSpeedMultiplier(m_fSpeedMultiplicator);
-	setPacmanColor(m_oPowerupColor.r, m_oPowerupColor.g, m_oPowerupColor.b);
+	SetPacmanColor(m_oPowerupColor);
 	setPowerUpTime(m_fPowerupDuration);
 
 	score += m_iPowerupScore;
@@ -121,7 +161,7 @@ bool powerUpEatenCallback(int& score)
 
 bool powerUpGone()
 { // El powerUp se ha acabado
-	setPacmanColor(255, 0, 0);
+	SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
 	setPacmanSpeedMultiplier(1.0f);
 	return true;
 }
@@ -131,19 +171,19 @@ bool pacmanRestarted(int& score)
 	score = 0;
 	num_coins = 0;
 	vida = max_vida;
+	m_bColorInitialized = false;
 
 	return true;
 }
 
 bool computeMedals(int& oro, int& plata, int& bronce, int score)
 {
-	bronce = score / m_iScoreToBronze;
-
-	plata = bronce / bronces_para_plata;
-	bronce = bronce % bronces_para_plata;
-	
-	oro = plata / platas_para_oro;
-	plata = plata % platas_para_oro;
+	lua_getglobal(m_pLua, "computeMedals");
+	lua_pushnumber(m_pLua, score);
+	lua_pcall(m_pLua, 1, 3, 0);
+	oro = lua_tointeger(m_pLua, -3);
+	plata = lua_tointeger(m_pLua, -2);
+	bronce = lua_tointeger(m_pLua, -1);
 
 	return true;
 }
@@ -151,6 +191,12 @@ bool computeMedals(int& oro, int& plata, int& bronce, int score)
 bool getLives(float& vidas)
 {
 	vidas = vida;
+	if (!m_bColorInitialized)
+	{
+		SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
+		m_bColorInitialized = true;
+	}
+	//SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
 	return true;
 }
 
@@ -166,8 +212,9 @@ bool removeImmuneCallback()
 
 bool InitGame()
 {
-	m_bLuaInitialized = InitializeLua();
-    return true;
+	InitializeLua();
+	m_bColorInitialized = false;
+	return true;
 }
 
 bool EndGame()
