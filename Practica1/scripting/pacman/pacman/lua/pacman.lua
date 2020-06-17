@@ -29,7 +29,7 @@ powerup_color = Color.new(0.5, 0, 1)
 
 function colorFromLives(_lives)
     if _lives > 1 then
-        return Color.new(1, 1, 0)
+        return Color.new(1, 0, 0)
     elseif _lives > 0.5 then
         return Color.new(1, 0.5, 0)
     elseif _lives > 0 then
@@ -52,7 +52,7 @@ function computeMedals(_score)
     return gold, silver, bronze
 end
 function pacmanEaten(_lives)
-    decreaseOneLife()
+    c_lib.decreaseOneLife()
     dead = false
     if _lives - 0.5  < 0 then
         dead = true
@@ -67,24 +67,24 @@ end
 function frameUpdate(_time, _timeEaten, _lives)
 
 	if _timeEaten > 2.05 then
-		setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
+		c_lib.setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
 	end
-    updateTimeEaten(_time)
+    c_lib.updateTimeEaten(_time)
 	return false
 end
 
 function powerupEaten()
-    setPacmanSpeedMultiplier(speed_multiplicator)
-    setPacmanColor(powerup_color.r, powerup_color.g, powerup_color.b)
-    setPowerUpTime(powerup_duration)
+    c_lib.setPacmanSpeedMultiplier(speed_multiplicator)
+    c_lib.setPacmanColor(powerup_color.r, powerup_color.g, powerup_color.b)
+    c_lib.setPowerUpTime(powerup_duration)
 end
 
 function initializePacman(_lives)
-    resetPacman()
-    setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
+    c_lib.resetPacman()
+    c_lib.setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
 
 end
 function powerUpGone(_lives)
-    setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
-    setPacmanSpeedMultiplier(1)
+    c_lib.setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
+    c_lib.setPacmanSpeedMultiplier(1)
 end

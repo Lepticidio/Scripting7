@@ -70,7 +70,16 @@ int DecreaseOneLife(lua_State* _pLua)
 	}
 	return 0;
 }
-
+static const struct luaL_Reg c_lib[] =
+{
+	{ "setPacmanColor", SetPacmanColor},
+	{ "setPacmanSpeedMultiplier", SetPacmanSpeedMultiplier},
+	{ "setPowerUpTime", SetPowerupTime},
+	{ "updateTimeEaten", UpdateTimeEaten},
+	{ "decreaseOneLife", DecreaseOneLife},
+	{ "resetPacman", ResetPacman},
+	{ NULL, NULL}
+};
 bool InitializeLua() 
 {
 	m_pLua = luaL_newstate(); /* crea el entorno de lua */
@@ -89,19 +98,7 @@ bool InitializeLua()
 		lua_getglobal(m_pLua, "coin_score");
 		lua_getglobal(m_pLua, "powerup_score");
 
-		lua_pushcfunction(m_pLua, SetPacmanColor);
-		lua_setglobal(m_pLua, "setPacmanColor");
-		lua_pushcfunction(m_pLua, SetPacmanSpeedMultiplier);
-		lua_setglobal(m_pLua, "setPacmanSpeedMultiplier");
-		lua_pushcfunction(m_pLua, SetPowerupTime);
-		lua_setglobal(m_pLua, "setPowerUpTime");
-		lua_pushcfunction(m_pLua, UpdateTimeEaten);
-		lua_setglobal(m_pLua, "updateTimeEaten");
-		lua_pushcfunction(m_pLua, DecreaseOneLife);
-		lua_setglobal(m_pLua, "decreaseOneLife");
-		lua_pushcfunction(m_pLua, ResetPacman);
-		lua_setglobal(m_pLua, "resetPacman");
-
+		luaL_register(m_pLua, "c_lib", c_lib);
 
 		m_iCoinScore = lua_tointeger(m_pLua, 1);
 		m_iPowerupScore = lua_tointeger(m_pLua, 2);
