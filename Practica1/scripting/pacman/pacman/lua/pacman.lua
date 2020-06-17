@@ -13,7 +13,7 @@ function Color.new(_r, _g, _b)
     return color
 end
 
-has_been_eaten = false
+
 width = 300
 coin_score = 25
 powerup_score = 2500
@@ -22,14 +22,14 @@ bronze_to_silver = 10
 silver_to_gold = 10
 powerup_duration = 20
 speed_multiplicator = 2
-time_eaten = 0
+
 --defino el color de 0 a 1 porque me es más intuitivo
 powerup_color = Color.new(0.5, 0, 1)
 
 
 function colorFromLives(_lives)
     if _lives > 1 then
-        return Color.new(1, 0, 0)
+        return Color.new(1, 1, 0)
     elseif _lives > 0.5 then
         return Color.new(1, 0.5, 0)
     elseif _lives > 0 then
@@ -52,31 +52,39 @@ function computeMedals(_score)
     return gold, silver, bronze
 end
 function pacmanEaten(_lives)
-    _lives = _lives - 0.5
-    dead = _lives < 0
-    if has_been_eaten == false then
-        has_been_eaten = true
+    decreaseOneLife()
+    dead = false
+    if _lives - 0.5  < 0 then
+        dead = true
     end
-    return dead, _lives
+    return dead
 end
+
 function getWidth()
 	return width
 end
 
-function frameUpdate(_deltaTime)
+function frameUpdate(_time, _timeEaten, _lives)
 
-	if has_been_eaten then
-
-		time_eaten = time_eaten + _deltaTime
-		if time_eaten > 2.05 then
-
-			--SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
-			time_eaten = 0
-			has_been_eaten = false;
-		end
+	if _timeEaten > 2.05 then
+		setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
 	end
-
+    updateTimeEaten(_time)
 	return false
+end
 
+function powerupEaten()
+    setPacmanSpeedMultiplier(speed_multiplicator)
+    setPacmanColor(powerup_color.r, powerup_color.g, powerup_color.b)
+    setPowerUpTime(powerup_duration)
+end
 
+function initializePacman(_lives)
+    resetPacman()
+    setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
+
+end
+function powerUpGone(_lives)
+    setPacmanColor(colorFromLives(_lives).r, colorFromLives(_lives).g, colorFromLives(_lives).b)
+    setPacmanSpeedMultiplier(1)
 end

@@ -5,63 +5,71 @@
 #include "lualib.h"
 
 
-struct Color
-{
-	float r;
-	float g;
-	float b;
 
-	Color(float _r, float _g, float _b) : r(_r), g(_g), b(_b)
-	{
-
-	}
-};
-bool m_bColorInitialized = false, m_bLuaInitialized = false;
+bool m_bInitialized = false, m_bHasBeenEaten;
 int num_coins = 0;
-
-const float max_vida = 1.5f;
-float vida = max_vida; 
+float m_fTimeEaten, m_fLives = 1.5f;
 
 lua_State* m_pLua;
 
 int m_iCoinScore = 0, m_iPowerupScore = 0;
-float m_fPowerupDuration = 0, m_fSpeedMultiplicator = 0, m_fTimeEaten;
-Color m_oPowerupColor(0, 0, 0);
 time_t  m_oLastTimeEaten, m_oTimeNow;
-bool m_bHasBeenEaten;
 
-Color ColorFromLua(int _iIndex)
+
+int SetPacmanColor(lua_State* _pLua)
 {
-	lua_getfield(m_pLua, _iIndex, "r");
-	float fRed = lua_tonumber(m_pLua, -1) * 255;
-	lua_getfield(m_pLua, _iIndex, "g");
-	float fGreen = lua_tonumber(m_pLua, -1) * 255;
-	lua_getfield(m_pLua, _iIndex, "b");
-	float fBlue = lua_tonumber(m_pLua, -1) * 255;
-
-	return Color(fRed, fGreen, fBlue);
-}
-Color ColorFromLivesLua(const char* _sName, float _fParameter)
-{
-	lua_getglobal(m_pLua, _sName);
-	lua_pushnumber(m_pLua, _fParameter);
-	lua_pcall(m_pLua, 1, 1, 0);
-	lua_getfield(m_pLua, -1, "r");
-	float fRed = lua_tonumber(m_pLua, -1) * 255;
-	lua_getfield(m_pLua, -2, "g");
-	float fGreen = lua_tonumber(m_pLua, -1) * 255;
-	lua_getfield(m_pLua, -3, "b");
-	float fBlue = lua_tonumber(m_pLua, -1) * 255;
-
-	return Color(fRed, fGreen, fBlue);
+	float fRed = lua_tonumber(_pLua, 1) * 255;
+	float fGreen = lua_tonumber(_pLua, 2) * 255;
+ 	float fBlue = lua_tonumber(_pLua, 3) * 255;
+	setPacmanColor((int)fRed, (int)fGreen, (int)fBlue);
+	return 0;
 }
 
-
-void SetPacmanColor(Color _oColor)
+int SetPacmanSpeedMultiplier(lua_State* _pLua)
 {
-	setPacmanColor((int)_oColor.r, (int)_oColor.g, (int)_oColor.b);
+	float fSpeedMultiplicator = lua_tonumber(_pLua, 1);
+	setPacmanSpeedMultiplier(fSpeedMultiplicator);
+	return 0;
 }
 
+int SetPowerupTime(lua_State* _pLua)
+{
+	float fPowerupDuration = lua_tonumber(_pLua, 1);
+	setPowerUpTime(fPowerupDuration);
+	return 0;
+}
+
+int UpdateTimeEaten(lua_State* _pLua)
+{
+	float fTime = lua_tonumber(_pLua, 1);
+	if (m_bHasBeenEaten)
+	{
+		if (m_fTimeEaten > 2.05f)
+		{
+			m_fTimeEaten = 0;
+			m_bHasBeenEaten = false;
+		}
+		m_fTimeEaten += fTime;
+	}
+	return 0;
+}
+
+int ResetPacman(lua_State* _pLua)
+{
+	num_coins = 0;
+	m_fLives = 1.5f;
+	return 0;
+}
+
+int DecreaseOneLife(lua_State* _pLua)
+{
+	m_fLives -= 0.5f;
+	if (!m_bHasBeenEaten)
+	{
+		m_bHasBeenEaten = true;
+	}
+	return 0;
+}
 
 bool InitializeLua() 
 {
@@ -80,19 +88,23 @@ bool InitializeLua()
 		lua_settop(m_pLua, 0);
 		lua_getglobal(m_pLua, "coin_score");
 		lua_getglobal(m_pLua, "powerup_score");
-		lua_getglobal(m_pLua, "powerup_duration");
-		lua_getglobal(m_pLua, "speed_multiplicator");
-		lua_getglobal(m_pLua, "powerup_color");
 
+		lua_pushcfunction(m_pLua, SetPacmanColor);
+		lua_setglobal(m_pLua, "setPacmanColor");
+		lua_pushcfunction(m_pLua, SetPacmanSpeedMultiplier);
+		lua_setglobal(m_pLua, "setPacmanSpeedMultiplier");
+		lua_pushcfunction(m_pLua, SetPowerupTime);
+		lua_setglobal(m_pLua, "setPowerUpTime");
+		lua_pushcfunction(m_pLua, UpdateTimeEaten);
+		lua_setglobal(m_pLua, "updateTimeEaten");
+		lua_pushcfunction(m_pLua, DecreaseOneLife);
+		lua_setglobal(m_pLua, "decreaseOneLife");
+		lua_pushcfunction(m_pLua, ResetPacman);
+		lua_setglobal(m_pLua, "resetPacman");
 
 
 		m_iCoinScore = lua_tointeger(m_pLua, 1);
 		m_iPowerupScore = lua_tointeger(m_pLua, 2);
-		m_fPowerupDuration = lua_tonumber(m_pLua, 3);
-		m_fSpeedMultiplicator = lua_tonumber(m_pLua, 4);
-
-		m_oPowerupColor = ColorFromLua(5);
-		m_bLuaInitialized = true;
 
 		return true;
 	}
@@ -106,14 +118,12 @@ void FinalizeLua()
 
 bool pacmanEatenCallback(int& score, bool& muerto)
 { // Pacman ha sido comido por un fantasma
-	lua_getglobal(m_pLua, "pacmanEaten");
-	lua_pushnumber(m_pLua, vida);
-	lua_pushboolean(m_pLua, m_bHasBeenEaten);
-	lua_pcall(m_pLua, 2, 3, 0);
-	muerto = lua_toboolean(m_pLua, -3);
-	vida = lua_tonumber(m_pLua, -2);
-	m_bHasBeenEaten = lua_toboolean(m_pLua, -1);
 
+
+	lua_getglobal(m_pLua, "pacmanEaten");
+	lua_pushnumber(m_pLua, m_fLives);
+	lua_pcall(m_pLua, 1, 1, 0);
+	muerto = lua_toboolean(m_pLua, -1);
 	return true;
 }
 
@@ -126,12 +136,24 @@ bool coinEatenCallback(int& score)
 }
 
 bool frameCallback(float time)
-{ // Se llama periodicamente cada frame
-	
+{ 
+	// Se llama periodicamente cada frame	
+
 	InitializeLua();
+	if (!m_bInitialized)
+	{
+		lua_getglobal(m_pLua, "initializePacman");
+		lua_pushnumber(m_pLua, m_fLives);
+		lua_pcall(m_pLua, 1, 0, 0);
+		m_bInitialized = true;
+	}
 	lua_getglobal(m_pLua, "frameUpdate");
 	lua_pushnumber(m_pLua, time);
-	lua_pcall(m_pLua, 1, 1, 0);
+	lua_pushnumber(m_pLua, m_fTimeEaten);
+	lua_pushnumber(m_pLua, m_fLives);
+	lua_pcall(m_pLua, 3, 1, 0);
+
+
 
 	return false;
 }
@@ -143,29 +165,24 @@ bool ghostEatenCallback(int& score)
 
 bool powerUpEatenCallback(int& score)
 { // Pacman se ha comido un powerUp
-	setPacmanSpeedMultiplier(m_fSpeedMultiplicator);
-	SetPacmanColor(m_oPowerupColor);
-	setPowerUpTime(m_fPowerupDuration);
-
+	lua_getglobal(m_pLua, "powerupEaten");
+	lua_pcall(m_pLua, 0, 0, 0);
 	score += m_iPowerupScore;
-
 	return true;
 }
 
 bool powerUpGone()
 { // El powerUp se ha acabado
-	SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
-	setPacmanSpeedMultiplier(1.0f);
+	lua_getglobal(m_pLua, "powerUpGone");
+	lua_pushnumber(m_pLua, m_fLives);
+	lua_pcall(m_pLua, 1, 0, 0);
 	return true;
 }
 
 bool pacmanRestarted(int& score)
 {
-	score = 0;
-	num_coins = 0;
-	vida = max_vida;
-	m_bColorInitialized = false;
-
+	score = 0; 
+	m_bInitialized = false;
 	return true;
 }
 
@@ -183,13 +200,8 @@ bool computeMedals(int& oro, int& plata, int& bronce, int score)
 
 bool getLives(float& vidas)
 {
-	vidas = vida;
-	if (!m_bColorInitialized)
-	{
-		SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
-		m_bColorInitialized = true;
-	}
-	//SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
+	lua_getglobal(m_pLua, "lives");
+	vidas = lua_tonumber(m_pLua, -1);
 	return true;
 }
 
@@ -206,7 +218,6 @@ bool removeImmuneCallback()
 bool InitGame()
 {
 	InitializeLua();
-	m_bColorInitialized = false;
 	return true;
 }
 
