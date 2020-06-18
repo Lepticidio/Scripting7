@@ -16,21 +16,29 @@ struct Color
 
 	}
 };
-bool m_bColorInitialized = false;
+
+
+
 int num_coins = 0;
 const int platas_para_oro = 5;
 const int bronces_para_plata = 100;
 
 const float max_vida = 1.5f;
-float vida = max_vida; 
 
+struct Pacman
+{
+	bool m_bHasBeenEaten;
+	bool m_bColorInitialized = false;
+	float vida = max_vida, m_fTimeEaten;
+
+};
+
+Pacman* m_pPacman;
 lua_State* m_pLua;
 
 int m_iCoinScore = 0, m_iPowerupScore = 0, m_iScoreToBronze = 0;
-float m_fPowerupDuration = 0, m_fSpeedMultiplicator = 0, m_fTimeEaten;
+float m_fPowerupDuration = 0, m_fSpeedMultiplicator = 0;
 Color m_oPowerupColor(0, 0, 0);
-time_t  m_oLastTimeEaten, m_oTimeNow;
-bool m_bHasBeenEaten;
 
 Color ColorFromLua(int _iIndex)
 {
@@ -104,11 +112,11 @@ void FinalizeLua()
 
 bool pacmanEatenCallback(int& score, bool& muerto)
 { // Pacman ha sido comido por un fantasma
-	vida -= 0.5f;
-	muerto = vida < 0.0f;
-	if (!m_bHasBeenEaten)
+	m_pPacman->vida -= 0.5f;
+	muerto = m_pPacman->vida < 0.0f;
+	if (!m_pPacman->m_bHasBeenEaten)
 	{
-		m_bHasBeenEaten = true;
+		m_pPacman->m_bHasBeenEaten = true;
 	}
 
 	return true;
@@ -126,14 +134,14 @@ bool frameCallback(float time)
 { // Se llama periodicamente cada frame
 	
 
-	if (m_bHasBeenEaten)
+	if (m_pPacman->m_bHasBeenEaten)
 	{
-		m_fTimeEaten += time;
-		if (m_fTimeEaten > 2.05f)
+		m_pPacman->m_fTimeEaten += time;
+		if (m_pPacman->m_fTimeEaten > 2.05f)
 		{
-			SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
-			m_fTimeEaten = 0;
-			m_bHasBeenEaten = false;
+			SetPacmanColor(ColorFromLivesLua("colorFromLives", m_pPacman->vida));
+			m_pPacman->m_fTimeEaten = 0;
+			m_pPacman->m_bHasBeenEaten = false;
 		}
 	}
 
@@ -158,7 +166,7 @@ bool powerUpEatenCallback(int& score)
 
 bool powerUpGone()
 { // El powerUp se ha acabado
-	SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
+	SetPacmanColor(ColorFromLivesLua("colorFromLives", m_pPacman->vida));
 	setPacmanSpeedMultiplier(1.0f);
 	return true;
 }
@@ -167,8 +175,8 @@ bool pacmanRestarted(int& score)
 {
 	score = 0;
 	num_coins = 0;
-	vida = max_vida;
-	m_bColorInitialized = false;
+	m_pPacman->vida = max_vida;
+	m_pPacman->m_bColorInitialized = false;
 
 	return true;
 }
@@ -188,11 +196,11 @@ bool computeMedals(int& oro, int& plata, int& bronce, int score)
 
 bool getLives(float& vidas)
 {
-	vidas = vida;
-	if (!m_bColorInitialized)
+	vidas = m_pPacman->vida;
+	if (!m_pPacman->m_bColorInitialized)
 	{
-		SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
-		m_bColorInitialized = true;
+		SetPacmanColor(ColorFromLivesLua("colorFromLives", m_pPacman->vida));
+		m_pPacman->m_bColorInitialized = true;
 	}
 	//SetPacmanColor(ColorFromLivesLua("colorFromLives", vida));
 	return true;
@@ -210,8 +218,9 @@ bool removeImmuneCallback()
 
 bool InitGame()
 {
+	m_pPacman = new Pacman();
 	InitializeLua();
-	m_bColorInitialized = false;
+	m_pPacman->m_bColorInitialized = false;
 	return true;
 }
 
