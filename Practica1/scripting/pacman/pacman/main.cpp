@@ -4,16 +4,7 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
-
-
-bool m_bInitialized = false, m_bHasBeenEaten;
-int num_coins = 0;
-float m_fTimeEaten, m_fLives = 1.5f;
-
 lua_State* m_pLua;
-
-int m_iCoinScore = 0, m_iPowerupScore = 0;
-time_t  m_oLastTimeEaten, m_oTimeNow;
 
 
 int SetPacmanColor(lua_State* _pLua)
@@ -39,45 +30,12 @@ int SetPowerupTime(lua_State* _pLua)
 	return 0;
 }
 
-int UpdateTimeEaten(lua_State* _pLua)
-{
-	float fTime = lua_tonumber(_pLua, 1);
-	if (m_bHasBeenEaten)
-	{
-		if (m_fTimeEaten > 2.05f)
-		{
-			m_fTimeEaten = 0;
-			m_bHasBeenEaten = false;
-		}
-		m_fTimeEaten += fTime;
-	}
-	return 0;
-}
 
-int ResetPacman(lua_State* _pLua)
-{
-	num_coins = 0;
-	m_fLives = 1.5f;
-	return 0;
-}
-
-int DecreaseOneLife(lua_State* _pLua)
-{
-	m_fLives -= 0.5f;
-	if (!m_bHasBeenEaten)
-	{
-		m_bHasBeenEaten = true;
-	}
-	return 0;
-}
 static const struct luaL_Reg c_lib[] =
 {
 	{ "setPacmanColor", SetPacmanColor},
 	{ "setPacmanSpeedMultiplier", SetPacmanSpeedMultiplier},
 	{ "setPowerUpTime", SetPowerupTime},
-	{ "updateTimeEaten", UpdateTimeEaten},
-	{ "decreaseOneLife", DecreaseOneLife},
-	{ "resetPacman", ResetPacman},
 	{ NULL, NULL}
 };
 bool InitializeLua() 
@@ -95,13 +53,10 @@ bool InitializeLua()
 	{
 
 		lua_settop(m_pLua, 0);
-		lua_getglobal(m_pLua, "coin_score");
-		lua_getglobal(m_pLua, "powerup_score");
 
 		luaL_register(m_pLua, "c_lib", c_lib);
 
-		m_iCoinScore = lua_tointeger(m_pLua, 1);
-		m_iPowerupScore = lua_tointeger(m_pLua, 2);
+
 
 		return true;
 	}
@@ -118,16 +73,17 @@ bool pacmanEatenCallback(int& score, bool& muerto)
 
 
 	lua_getglobal(m_pLua, "pacmanEaten");
-	lua_pushnumber(m_pLua, m_fLives);
-	lua_pcall(m_pLua, 1, 1, 0);
+	lua_pcall(m_pLua, 0, 1, 0);
 	muerto = lua_toboolean(m_pLua, -1);
 	return true;
 }
 
 bool coinEatenCallback(int& score)
 { // Pacman se ha comido una moneda
-	++num_coins;
-	score = num_coins * m_iCoinScore;
+	lua_getglobal(m_pLua, "increaseCoins");
+	lua_pcall(m_pLua, 0, 1, 0);
+	int iCoinScore = lua_tointeger(m_pLua, -1);
+	score += iCoinScore;
 
 	return true;
 }
@@ -136,19 +92,10 @@ bool frameCallback(float time)
 { 
 	// Se llama periodicamente cada frame	
 
-	InitializeLua();
-	if (!m_bInitialized)
-	{
-		lua_getglobal(m_pLua, "initializePacman");
-		lua_pushnumber(m_pLua, m_fLives);
-		lua_pcall(m_pLua, 1, 0, 0);
-		m_bInitialized = true;
-	}
+
 	lua_getglobal(m_pLua, "frameUpdate");
 	lua_pushnumber(m_pLua, time);
-	lua_pushnumber(m_pLua, m_fTimeEaten);
-	lua_pushnumber(m_pLua, m_fLives);
-	lua_pcall(m_pLua, 3, 1, 0);
+	lua_pcall(m_pLua, 1, 0, 0);
 
 
 
@@ -163,23 +110,24 @@ bool ghostEatenCallback(int& score)
 bool powerUpEatenCallback(int& score)
 { // Pacman se ha comido un powerUp
 	lua_getglobal(m_pLua, "powerupEaten");
-	lua_pcall(m_pLua, 0, 0, 0);
-	score += m_iPowerupScore;
+	lua_pcall(m_pLua, 0, 1, 0);
+	int iPowerupSocre = lua_tointeger(m_pLua, -1);
+	score += iPowerupSocre;
 	return true;
 }
 
 bool powerUpGone()
 { // El powerUp se ha acabado
 	lua_getglobal(m_pLua, "powerUpGone");
-	lua_pushnumber(m_pLua, m_fLives);
-	lua_pcall(m_pLua, 1, 0, 0);
+	lua_pcall(m_pLua, 0, 0, 0);
 	return true;
 }
 
 bool pacmanRestarted(int& score)
 {
-	score = 0; 
-	m_bInitialized = false;
+	score = 0;
+	lua_getglobal(m_pLua, "initializePacman");
+	lua_pcall(m_pLua, 0, 0, 0);
 	return true;
 }
 
