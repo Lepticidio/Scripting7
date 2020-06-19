@@ -4,7 +4,6 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
-
 struct Color
 {
 	float r;
@@ -40,6 +39,8 @@ int m_iCoinScore = 0, m_iPowerupScore = 0, m_iScoreToBronze = 0;
 float m_fPowerupDuration = 0, m_fSpeedMultiplicator = 0;
 Color m_oPowerupColor(0, 0, 0);
 
+
+
 static int newPacman(lua_State* L)
 {
 	m_pPacman = (Pacman*)lua_newuserdata
@@ -51,15 +52,22 @@ static int newPacman(lua_State* L)
 	m_pPacman->m_bHasBeenEaten = false;
 	m_pPacman->m_fTimeEaten = 0;
 	m_pPacman->m_fLife = 1.5f;
+	luaL_getmetatable(m_pLua, "pacman.Metatable");
+	lua_setmetatable(m_pLua, -2);
 	return 1;
 }
+static const struct luaL_Reg pacman_funcs[] =
+{
+	{"new", newPacman},
+	{NULL, NULL},
+};
 Color ColorFromLua(int _iIndex)
 {
 	lua_getfield(m_pLua, _iIndex, "r");
 	float fRed = lua_tonumber(m_pLua, -1) * 255;
-	lua_getfield(m_pLua, _iIndex, "g");
+	lua_getfield(m_pLua, _iIndex -1, "g");
 	float fGreen = lua_tonumber(m_pLua, -1) * 255;
-	lua_getfield(m_pLua, _iIndex, "b");
+	lua_getfield(m_pLua, _iIndex -2, "b");
 	float fBlue = lua_tonumber(m_pLua, -1) * 255;
 
 	return Color(fRed, fGreen, fBlue);
@@ -89,9 +97,14 @@ bool InitializeLua()
 {
 	m_pLua = luaL_newstate(); /* crea el entorno de lua */
 	luaL_openlibs(m_pLua); /* abre las librerias */
-	lua_pushcfunction(m_pLua, newPacman);
-	lua_setglobal(m_pLua, "newPacman");
+
+	luaL_newmetatable(m_pLua, "pacman.Metatable");
+	lua_pushvalue(m_pLua, -1); // duplicar metatable
+	lua_setfield(m_pLua, -2, "__index");
+	luaL_register(m_pLua, "pacman", pacman_funcs);
+
 	int error = luaL_loadfile(m_pLua, "lua/pacman.lua"); /* carga el codigo en la pila */
+
 	error |= lua_pcall(m_pLua, 0, 0, 0); /* ejecuta el codigo */
 	if (error) {
 		fprintf(stderr, "%s", lua_tostring(m_pLua, -1)); /* el mensaje de error esta en la cima de la pila */
@@ -100,6 +113,8 @@ bool InitializeLua()
 	}
 	else
 	{
+
+
 		lua_getglobal(m_pLua, "coin_score");
 		lua_getglobal( m_pLua,  "powerup_score");
 		lua_getglobal(m_pLua, "score_to_bronze");
@@ -107,14 +122,13 @@ bool InitializeLua()
 		lua_getglobal(m_pLua, "speed_multiplicator");
 		lua_getglobal(m_pLua, "powerup_color");
 
-		m_iCoinScore = lua_tointeger(m_pLua, 1);
-		m_iPowerupScore = lua_tointeger(m_pLua, 2);
-		m_iScoreToBronze = lua_tointeger(m_pLua, 3);
-		m_fPowerupDuration = lua_tonumber(m_pLua, 4);
-		m_fSpeedMultiplicator = lua_tonumber(m_pLua, 5);
+		m_iCoinScore = lua_tointeger(m_pLua, -6);
+		m_iPowerupScore = lua_tointeger(m_pLua, -5);
+		m_iScoreToBronze = lua_tointeger(m_pLua, -4);
+		m_fPowerupDuration = lua_tonumber(m_pLua, -3);
+		m_fSpeedMultiplicator = lua_tonumber(m_pLua, -2);
 
-		m_oPowerupColor = ColorFromLua(6);
-
+		m_oPowerupColor = ColorFromLua(-1);
 		return true;
 	}
 }
@@ -234,7 +248,6 @@ bool removeImmuneCallback()
 bool InitGame()
 {
 	InitializeLua();
-	m_pPacman->m_bColorInitialized = false;
 	return true;
 }
 

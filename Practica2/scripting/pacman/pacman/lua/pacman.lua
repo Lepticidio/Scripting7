@@ -22,7 +22,7 @@ speed_multiplicator = 2
 --defino el color de 0 a 1 porque me es más intuitivo
 powerup_color = Color.new(0.5, 0, 1)
 
-pacman = newPacman()
+myPacman = pacman.new()
 
 function colorFromLives(_lives)
     if _lives > 1 then
